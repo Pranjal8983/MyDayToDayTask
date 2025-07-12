@@ -1,0 +1,82 @@
+name: Terraform CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  terraform:
+    name: Terraform Workflow
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 💾 Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: 🧹 Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: ./terraform-openproject
+
+      - name: ✅ Terraform Init
+        run: terraform init
+        working-directory: ./terraform-openproject
+
+      - name: 🔍 Terraform Validate
+        run: terraform validate
+        working-directory: ./terraform-openproject
+
+      - name: 📊 Terraform Plan
+        run: terraform plan -input=false
+        working-directory: ./terraform-openproject
+
+      - name: 🚀 Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve -input=false
+        working-directory: ./terraform-openproject
+
+  checkov:
+    name: 🔐 Checkov Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🛡️ Run Checkov for security scanning
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform-openproject
+          quiet: true
+
+  terraform_docs:
+    name: 📚 Generate Terraform Docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📄 Setup terraform-docs
+        uses: terraform-docs/gh-actions@v1
+        with:
+          working-dir: ./terraform-openproject
+          output-file: README.md
+          output-method: inject
+          git-push: true
